@@ -1,67 +1,68 @@
-export const SYSTEM_PROMPT = `You are a thorough search agent. You MUST use ALL available tools to find information.
+export const SYSTEM_PROMPT = `You are a thorough search agent with access to tools. Use your tools to find information.
 
-CRITICAL RULES:
-- You MUST make ALL searches listed in the user prompt. Do NOT skip any. Do NOT stop early.
-- Make ALL tool calls before generating your final response.
-- Use fetch_url to verify profiles and get more details from promising search results.
-- Output COMPACT JSON only. No markdown, no explanations, no commentary.
-- Omit empty string fields from output to save tokens.
-- If nothing found, return [].
-- NEVER respond until you have completed ALL required searches.`;
+RULES:
+- Use your tools to search. Do NOT write out tool calls as text.
+- Search multiple times across different platforms to be thorough.
+- Use fetch_url to visit promising URLs and extract details.
+- After all searching is done, output COMPACT JSON only. No markdown, no explanations.
+- Omit empty fields. If nothing found, return [].`;
 
 // Preset prompt templates — use via {"prompt": "people", "query": "Dvuln"}
 export const PROMPT_TEMPLATES: Record<string, string> = {
-  people: `Deeply investigate and find ALL people associated with "{query}". Go through everything in great detail and uncover every intricacy.
+  people: `Deeply investigate "{query}" and find ALL people associated with it. Go through everything in great detail and uncover every intricacy.
 
-You MUST execute ALL of these searches — do NOT skip any:
-1. web_search("{query} linkedin profile")
-2. web_search("{query} linkedin developer engineer")
-3. web_search("{query} github profile")
-4. web_search("{query} gitlab profile")
-5. web_search("{query} stackoverflow profile")
-6. web_search("{query} npmjs package author")
-7. web_search("{query} pypi package author")
-8. web_search("{query} dockerhub")
-9. web_search("{query} codepen")
-10. web_search("{query} swaggerhub")
-11. web_search("{query} rubygems author")
-12. web_search("{query} packagist author")
-13. web_search("{query} crates.io author")
-14. web_search("{query} bitbucket profile")
-15. web_search("{query} twitter OR x.com")
-16. web_search("{query} developer OR engineer OR founder OR CTO")
-17. github_search("{query}")
-18. reddit_search("{query}")
-19. hackernews_search("{query}")
+Search for "{query}" on each of these platforms separately:
+- LinkedIn profiles and professional history
+- GitHub profiles and repositories
+- GitLab profiles
+- Bitbucket profiles
+- StackOverflow profiles
+- npm package authors
+- PyPI package authors
+- DockerHub profiles
+- CodePen profiles
+- SwaggerHub profiles
+- RubyGems authors
+- Packagist authors
+- crates.io authors
+- Twitter / X profiles
+- General web presence (developer, engineer, founder, CTO)
 
-After ALL searches complete, deeply investigate each result. Use fetch_url on EVERY promising URL to extract names, emails, roles, and profile details in great detail. Go through every intricacy — check profile pages, contribution pages, about pages, and README files.
+Also use github_search, reddit_search, and hackernews_search tools directly.
 
-Focus especially on LinkedIn — search deeply for their professional profiles, roles, companies, and work history.
+After searching, use fetch_url on every promising URL to deeply extract names, emails, roles, and profile details. Go through every intricacy — check profile pages, contribution pages, about pages. Focus especially on LinkedIn for professional roles, companies, and work history.
 
-Do NOT respond until ALL 19 searches are done and you have fetched details from promising results.
-JSON only. No markdown. If nothing found, return [].
+Output JSON array only:
 [{"name":"","work_email":"","roles":[],"github_url":"","gitlab_url":"","bitbucket_url":"","stackoverflow_url":"","dockerhub_url":"","pypi_url":"","npmjs_url":"","codepen_url":"","linkedin_url":"","swaggerhub_url":"","rubygems_url":"","packagist_url":"","crates_url":"","twitter_url":"","website_url":""}]`,
 
-  repos: `Find public code repos of "{query}". You MUST execute ALL of these searches:
-1. web_search("{query} github")
-2. web_search("{query} gitlab")
-3. web_search("{query} bitbucket")
-4. github_search("{query}")
-5. web_search("{query} open source repository")
-After ALL searches, use fetch_url on results to get repo details.
-Do NOT respond until all 5 searches are done.
-JSON only. No markdown. If nothing found, return [].
+  repos: `Deeply investigate and find ALL public code repositories of "{query}". Go through everything in great detail.
+
+Search for "{query}" repos on each platform separately:
+- GitHub repositories
+- GitLab repositories
+- Bitbucket repositories
+- General open source repositories
+
+Also use the github_search tool directly.
+
+After searching, use fetch_url on results to deeply extract repo details and intricacies.
+
+Output JSON only:
 {"repos":[{"platform":"","url":"","name":"","description":"","language":"","stars":""}]}`,
 
-  apis: `Find public API docs of "{query}". You MUST execute ALL of these searches:
-1. web_search("{query} API documentation")
-2. web_search("{query} swaggerhub")
-3. web_search("{query} rapidapi")
-4. web_search("{query} openapi OR swagger spec")
-5. github_search("{query} api")
-6. web_search("{query} REST API OR GraphQL")
-After ALL searches, use fetch_url on results to get API details.
-Do NOT respond until all 6 searches are done.
-JSON only. No markdown. If nothing found, return [].
+  apis: `Deeply investigate and find ALL public API documentation for "{query}". Go through everything in great detail.
+
+Search for "{query}" APIs on each platform separately:
+- API documentation pages
+- SwaggerHub specs
+- RapidAPI listings
+- OpenAPI / Swagger specs
+- REST API and GraphQL endpoints
+
+Also use the github_search tool directly for API repos.
+
+After searching, use fetch_url on results to deeply extract API details and intricacies.
+
+Output JSON only:
 {"apis":[{"name":"","docs_url":"","openapi_url":"","description":""}]}`,
 };
