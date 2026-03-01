@@ -7,7 +7,8 @@ import {
   redditSearch,
   archiveSearch,
 } from "./tools/extra-search-sources";
-import { SYSTEM_PROMPT, PROMPT_TEMPLATES } from "./prompts/system";
+import { preSearchPeople, preSearchRepos, preSearchApis } from "./tools/pre-search";
+import { SYSTEM_PROMPT, SYNTHESIS_PROMPTS } from "./prompts/system";
 import type { Env, AgentRequest } from "./types";
 
 const DEFAULT_MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct";
@@ -25,15 +26,11 @@ const TOOLS_SCHEMA = [
     type: "function" as const,
     function: {
       name: "web_search",
-      description:
-        "Search the internet for current information. Returns top 5 results.",
+      description: "Search the internet for current information.",
       parameters: {
         type: "object",
         properties: {
-          search_query: {
-            type: "string",
-            description: "The search query",
-          },
+          search_query: { type: "string", description: "The search query" },
         },
         required: ["search_query"],
       },
@@ -57,11 +54,11 @@ const TOOLS_SCHEMA = [
     type: "function" as const,
     function: {
       name: "wikipedia_search",
-      description: "Search Wikipedia for knowledge, definitions, and reference information.",
+      description: "Search Wikipedia for knowledge and reference information.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "The Wikipedia search query" },
+          query: { type: "string", description: "The search query" },
         },
         required: ["query"],
       },
@@ -71,11 +68,11 @@ const TOOLS_SCHEMA = [
     type: "function" as const,
     function: {
       name: "github_search",
-      description: "Search GitHub for repositories, users, and code projects.",
+      description: "Search GitHub for repositories and code projects.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "The GitHub search query" },
+          query: { type: "string", description: "The search query" },
         },
         required: ["query"],
       },
@@ -85,11 +82,11 @@ const TOOLS_SCHEMA = [
     type: "function" as const,
     function: {
       name: "hackernews_search",
-      description: "Search Hacker News for tech news, articles, and discussions.",
+      description: "Search Hacker News for tech news and discussions.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "The Hacker News search query" },
+          query: { type: "string", description: "The search query" },
         },
         required: ["query"],
       },
@@ -99,11 +96,11 @@ const TOOLS_SCHEMA = [
     type: "function" as const,
     function: {
       name: "reddit_search",
-      description: "Search Reddit for discussions, opinions, and community posts.",
+      description: "Search Reddit for discussions and community posts.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "The Reddit search query" },
+          query: { type: "string", description: "The search query" },
         },
         required: ["query"],
       },
@@ -113,11 +110,11 @@ const TOOLS_SCHEMA = [
     type: "function" as const,
     function: {
       name: "archive_search",
-      description: "Search Archive.org Wayback Machine for historical snapshots of websites.",
+      description: "Search Archive.org for historical website snapshots.",
       parameters: {
         type: "object",
         properties: {
-          query: { type: "string", description: "The domain or URL to search for" },
+          query: { type: "string", description: "The domain or URL" },
         },
         required: ["query"],
       },
@@ -131,7 +128,7 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-// Execute a tool call and return the result
+// Execute a tool call
 async function executeTool(
   name: string,
   args: Record<string, string>,
@@ -157,6 +154,78 @@ async function executeTool(
   }
 }
 
+// Pre-search runners for each template
+const PRE_SEARCH_RUNNERS: Record<string, (q: string, env: Env) => Promise<string>> = {
+  people: preSearchPeople,
+  repos: preSearchRepos,
+  apis: preSearchApis,
+};
+
+// Template mode: pre-execute searches, then ask model to synthesize
+async function handleTemplateQuery(
+  query: string,
+  template: string,
+  model: string,
+  env: Env
+): Promise<string> {
+  // Run all searches in parallel
+  const runner = PRE_SEARCH_RUNNERS[template];
+  const searchResults = await runner(query, env);
+
+  // Build synthesis prompt with results injected
+  const synthesisPrompt = SYNTHESIS_PROMPTS[template]
+    .replace(/\{query\}/g, query)
+    .replace(/\{results\}/g, searchResults);
+
+  const aiResponse = (await env.AI.run(model as any, {
+    messages: [
+      { role: "system", content: "You analyze search results and output JSON only. No markdown, no explanations, no commentary." },
+      { role: "user", content: synthesisPrompt },
+    ],
+  })) as any;
+
+  return aiResponse.response || aiResponse.content || "[]";
+}
+
+// Raw query mode: model uses tool calling loop
+async function handleRawQuery(
+  query: string,
+  model: string,
+  env: Env
+): Promise<string> {
+  const messages: any[] = [
+    { role: "system", content: SYSTEM_PROMPT },
+    { role: "user", content: query },
+  ];
+
+  for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+    const aiResponse = (await env.AI.run(model as any, {
+      messages,
+      tools: TOOLS_SCHEMA,
+    })) as any;
+
+    if (aiResponse.response && (!aiResponse.tool_calls || aiResponse.tool_calls.length === 0)) {
+      return aiResponse.response;
+    }
+
+    if (!aiResponse.tool_calls || aiResponse.tool_calls.length === 0) {
+      return aiResponse.response || aiResponse.content || "No response generated.";
+    }
+
+    messages.push({ role: "assistant", tool_calls: aiResponse.tool_calls });
+
+    for (const toolCall of aiResponse.tool_calls) {
+      const name = toolCall.name || toolCall.function?.name;
+      const rawArgs = toolCall.arguments || toolCall.function?.arguments;
+      const args = typeof rawArgs === "string" ? JSON.parse(rawArgs) : rawArgs;
+      const result = await executeTool(name, args, env);
+      messages.push({ role: "tool", name, content: result });
+    }
+  }
+
+  return "Max tool rounds reached.";
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "OPTIONS") {
@@ -170,7 +239,6 @@ export default {
       );
     }
 
-    // API key authentication
     if (env.API_KEY && request.headers.get("x-api-key") !== env.API_KEY) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -183,16 +251,10 @@ export default {
     }
 
     if (!body.query || typeof body.query !== "string") {
-      return Response.json(
-        { error: "Missing 'query' field" },
-        { status: 400 }
-      );
+      return Response.json({ error: "Missing 'query' field" }, { status: 400 });
     }
     if (body.query.length > 10000) {
-      return Response.json(
-        { error: "Query too long (max 10000 chars)" },
-        { status: 400 }
-      );
+      return Response.json({ error: "Query too long (max 10000 chars)" }, { status: 400 });
     }
 
     const model = ALLOWED_MODELS.includes(body.model || "")
@@ -200,64 +262,18 @@ export default {
       : DEFAULT_MODEL;
 
     try {
-      // Build user message from template or raw query
-      const template = body.prompt ? PROMPT_TEMPLATES[body.prompt] : null;
-      const userMessage = template
-        ? template.replace(/\{query\}/g, body.query)
-        : body.query;
+      let response: string;
 
-      const messages: any[] = [
-        { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: userMessage },
-      ];
-
-      let finalResponse = "";
-
-      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-        const aiResponse = (await env.AI.run(model as any, {
-          messages,
-          tools: TOOLS_SCHEMA,
-        })) as any;
-
-        // If model returns text content with no tool calls, we're done
-        if (aiResponse.response && (!aiResponse.tool_calls || aiResponse.tool_calls.length === 0)) {
-          finalResponse = aiResponse.response;
-          break;
-        }
-
-        // If no tool calls and no response, bail
-        if (!aiResponse.tool_calls || aiResponse.tool_calls.length === 0) {
-          finalResponse =
-            aiResponse.response || aiResponse.content || "No response generated.";
-          break;
-        }
-
-        // Add assistant message with tool calls to conversation
-        messages.push({
-          role: "assistant",
-          tool_calls: aiResponse.tool_calls,
-        });
-
-        // Execute each tool call and add results
-        for (const toolCall of aiResponse.tool_calls) {
-          // Handle both flat (name, arguments) and nested (function.name, function.arguments)
-          const name = toolCall.name || toolCall.function?.name;
-          const rawArgs = toolCall.arguments || toolCall.function?.arguments;
-          const args =
-            typeof rawArgs === "string" ? JSON.parse(rawArgs) : rawArgs;
-
-          const result = await executeTool(name, args, env);
-
-          messages.push({
-            role: "tool",
-            name: name,
-            content: result,
-          });
-        }
+      if (body.prompt && SYNTHESIS_PROMPTS[body.prompt]) {
+        // Template mode: pre-search + synthesize
+        response = await handleTemplateQuery(body.query, body.prompt, model, env);
+      } else {
+        // Raw query mode: tool calling loop
+        response = await handleRawQuery(body.query, model, env);
       }
 
       return Response.json(
-        { response: finalResponse, model },
+        { response, model },
         { headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
       );
     } catch (err: any) {
