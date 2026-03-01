@@ -138,26 +138,8 @@ export default {
           break;
         }
 
-        // Add assistant message with tool calls
-        messages.push({
-          role: "assistant",
-          content: aiResponse.response || "",
-          tool_calls: aiResponse.tool_calls.map((tc: any, idx: number) => ({
-            id: tc.id || `call_${round}_${idx}`,
-            type: "function",
-            function: {
-              name: tc.name,
-              arguments:
-                typeof tc.arguments === "string"
-                  ? tc.arguments
-                  : JSON.stringify(tc.arguments),
-            },
-          })),
-        });
-
         // Execute each tool call and add results
-        for (let i = 0; i < aiResponse.tool_calls.length; i++) {
-          const toolCall = aiResponse.tool_calls[i];
+        for (const toolCall of aiResponse.tool_calls) {
           const args =
             typeof toolCall.arguments === "string"
               ? JSON.parse(toolCall.arguments)
@@ -167,7 +149,7 @@ export default {
 
           messages.push({
             role: "tool",
-            tool_call_id: toolCall.id || `call_${round}_${i}`,
+            name: toolCall.name,
             content: result,
           });
         }
