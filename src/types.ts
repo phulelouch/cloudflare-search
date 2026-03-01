@@ -1,6 +1,7 @@
 export interface Env {
   AI: Ai;
   BRAVE_API_KEY: string;
+  API_KEY: string;
 }
 
 export interface SearchResult {

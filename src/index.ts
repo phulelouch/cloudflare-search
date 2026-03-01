@@ -83,6 +83,11 @@ export default {
       );
     }
 
+    // API key authentication
+    if (env.API_KEY && request.headers.get("x-api-key") !== env.API_KEY) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     let body: AgentRequest;
     try {
       body = (await request.json()) as AgentRequest;
