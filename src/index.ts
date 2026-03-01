@@ -120,12 +120,15 @@ export default {
       ];
 
       let finalResponse = "";
+      const debugLog: any[] = [];
 
       for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
         const aiResponse = (await env.AI.run(model as any, {
           messages,
           tools: TOOLS_SCHEMA,
         })) as any;
+
+        debugLog.push({ round, tool_calls: aiResponse.tool_calls?.map((tc: any) => tc.function?.name || tc.name), hasResponse: !!aiResponse.response, tokens: aiResponse.usage });
 
         // If model returns text content with no tool calls, we're done
         if (aiResponse.response && (!aiResponse.tool_calls || aiResponse.tool_calls.length === 0)) {
@@ -165,7 +168,7 @@ export default {
       }
 
       return Response.json(
-        { response: finalResponse, model },
+        { response: finalResponse, model, debug: debugLog },
         { headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
       );
     } catch (err: any) {
