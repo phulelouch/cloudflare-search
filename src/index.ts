@@ -1,5 +1,12 @@
 import { webSearch } from "./tools/web-search";
 import { fetchUrl } from "./tools/fetch-url";
+import {
+  wikipediaSearch,
+  hackerNewsSearch,
+  githubSearch,
+  redditSearch,
+  archiveSearch,
+} from "./tools/extra-search-sources";
 import { SYSTEM_PROMPT, PROMPT_TEMPLATES } from "./prompts/system";
 import type { Env, AgentRequest } from "./types";
 
@@ -46,6 +53,76 @@ const TOOLS_SCHEMA = [
       },
     },
   },
+  {
+    type: "function" as const,
+    function: {
+      name: "wikipedia_search",
+      description: "Search Wikipedia for knowledge, definitions, and reference information.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The Wikipedia search query" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "github_search",
+      description: "Search GitHub for repositories, users, and code projects.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The GitHub search query" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "hackernews_search",
+      description: "Search Hacker News for tech news, articles, and discussions.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The Hacker News search query" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "reddit_search",
+      description: "Search Reddit for discussions, opinions, and community posts.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The Reddit search query" },
+        },
+        required: ["query"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "archive_search",
+      description: "Search Archive.org Wayback Machine for historical snapshots of websites.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "The domain or URL to search for" },
+        },
+        required: ["query"],
+      },
+    },
+  },
 ];
 
 const CORS_HEADERS = {
@@ -65,6 +142,16 @@ async function executeTool(
       return await webSearch(args.search_query, env);
     case "fetch_url":
       return await fetchUrl(args.url);
+    case "wikipedia_search":
+      return await wikipediaSearch(args.query);
+    case "github_search":
+      return await githubSearch(args.query);
+    case "hackernews_search":
+      return await hackerNewsSearch(args.query);
+    case "reddit_search":
+      return await redditSearch(args.query);
+    case "archive_search":
+      return await archiveSearch(args.query);
     default:
       return `Unknown tool: ${name}`;
   }
