@@ -115,6 +115,7 @@ export default {
       ];
 
       let finalResponse = "";
+      const debugLog: any[] = [];
 
       for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
         const aiResponse = (await env.AI.run(model as any, {
@@ -122,13 +123,15 @@ export default {
           tools: TOOLS_SCHEMA,
         })) as any;
 
-        // If model returns text content, we're done
-        if (aiResponse.response) {
+        debugLog.push({ round, aiResponse });
+
+        // If model returns text content with no tool calls, we're done
+        if (aiResponse.response && (!aiResponse.tool_calls || aiResponse.tool_calls.length === 0)) {
           finalResponse = aiResponse.response;
           break;
         }
 
-        // If no tool calls, extract whatever we can
+        // If no tool calls and no response, bail
         if (!aiResponse.tool_calls || aiResponse.tool_calls.length === 0) {
           finalResponse =
             aiResponse.response || aiResponse.content || "No response generated.";
@@ -138,11 +141,23 @@ export default {
         // Add assistant message with tool calls
         messages.push({
           role: "assistant",
-          tool_calls: aiResponse.tool_calls,
+          content: aiResponse.response || "",
+          tool_calls: aiResponse.tool_calls.map((tc: any, idx: number) => ({
+            id: tc.id || `call_${round}_${idx}`,
+            type: "function",
+            function: {
+              name: tc.name,
+              arguments:
+                typeof tc.arguments === "string"
+                  ? tc.arguments
+                  : JSON.stringify(tc.arguments),
+            },
+          })),
         });
 
         // Execute each tool call and add results
-        for (const toolCall of aiResponse.tool_calls) {
+        for (let i = 0; i < aiResponse.tool_calls.length; i++) {
+          const toolCall = aiResponse.tool_calls[i];
           const args =
             typeof toolCall.arguments === "string"
               ? JSON.parse(toolCall.arguments)
@@ -152,14 +167,14 @@ export default {
 
           messages.push({
             role: "tool",
-            name: toolCall.name,
+            tool_call_id: toolCall.id || `call_${round}_${i}`,
             content: result,
           });
         }
       }
 
       return Response.json(
-        { response: finalResponse, model },
+        { response: finalResponse, model, debug: debugLog },
         { headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
       );
     } catch (err: any) {
