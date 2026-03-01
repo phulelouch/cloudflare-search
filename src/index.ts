@@ -155,7 +155,7 @@ async function executeTool(
 }
 
 // Pre-search runners for each template
-const PRE_SEARCH_RUNNERS: Record<string, (q: string) => Promise<string>> = {
+const PRE_SEARCH_RUNNERS: Record<string, (q: string, env: Env) => Promise<string>> = {
   people: preSearchPeople,
   repos: preSearchRepos,
   apis: preSearchApis,
@@ -168,9 +168,9 @@ async function handleTemplateQuery(
   model: string,
   env: Env
 ): Promise<string> {
-  // Run all searches in parallel (uses DDG only to stay under subrequest limit)
+  // Run all searches in parallel (Brave API primary, DDG fallback)
   const runner = PRE_SEARCH_RUNNERS[template];
-  const searchResults = await runner(query);
+  const searchResults = await runner(query, env);
 
   // Build synthesis prompt with results injected
   const synthesisPrompt = SYNTHESIS_PROMPTS[template]
@@ -267,7 +267,7 @@ export default {
       // Debug mode: return raw search results without AI synthesis
       if (body.debug && body.prompt && PRE_SEARCH_RUNNERS[body.prompt]) {
         const runner = PRE_SEARCH_RUNNERS[body.prompt];
-        const searchResults = await runner(body.query);
+        const searchResults = await runner(body.query, env);
         return Response.json(
           { debug: true, search_results: searchResults, model },
           { headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
