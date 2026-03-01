@@ -1,14 +1,13 @@
-export const SYSTEM_PROMPT = `You are a helpful AI research assistant with internet access.
+export const SYSTEM_PROMPT = `You search for publicly available information. Output JSON only. No markdown, no explanations. If nothing found, return [].`;
 
-You have the following tools available:
-- web_search: Search the internet for current information. Use this for recent events, news, technical questions, prices, dates, or anything you're uncertain about.
-- fetch_url: Fetch and read the full content of a specific webpage URL.
+// Preset prompt templates — use via {"prompt": "people", "query": "Dvuln"}
+export const PROMPT_TEMPLATES: Record<string, string> = {
+  people: `Search for people at "{query}". Find profiles on GitHub, GitLab, LinkedIn, StackOverflow, npm, PyPI. JSON only. No markdown. If nothing found, return [].
+[{"name":"","work_email":"","roles":[],"github_url":"","gitlab_url":"","bitbucket_url":"","stackoverflow_url":"","dockerhub_url":"","pypi_url":"","npmjs_url":"","codepen_url":"","linkedin_url":"","swaggerhub_url":"","rubygems_url":"","packagist_url":"","crates_url":""}]`,
 
-Guidelines:
-- ALWAYS search when the user asks about current events, recent news, or time-sensitive information.
-- ALWAYS search when you're unsure about facts, especially dates, statistics, versions, or people's current roles.
-- You can make multiple searches to gather comprehensive information.
-- After fetching search results, you can use fetch_url to read full articles for more detail.
-- Cite your sources by including the URL when referencing specific information.
-- If search results are insufficient, say so honestly.
-- Be concise but thorough in your responses.`;
+  repos: `Search for public code repos of "{query}" on GitHub, GitLab, Bitbucket. JSON only. No markdown. If nothing found, return [].
+{"repos":[{"platform":"","url":"","name":"","description":"","language":""}]}`,
+
+  apis: `Search for public API docs of "{query}" on SwaggerHub, RapidAPI, or their website. JSON only. No markdown. If nothing found, return [].
+{"apis":[{"name":"","docs_url":"","openapi_url":"","description":""}]}`,
+};

@@ -1,6 +1,6 @@
 import { webSearch } from "./tools/web-search";
 import { fetchUrl } from "./tools/fetch-url";
-import { SYSTEM_PROMPT } from "./prompts/system";
+import { SYSTEM_PROMPT, PROMPT_TEMPLATES } from "./prompts/system";
 import type { Env, AgentRequest } from "./types";
 
 const DEFAULT_MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct";
@@ -108,10 +108,15 @@ export default {
       : DEFAULT_MODEL;
 
     try {
-      // Build conversation with tool calling loop
+      // Build user message from template or raw query
+      const template = body.prompt ? PROMPT_TEMPLATES[body.prompt] : null;
+      const userMessage = template
+        ? template.replace(/\{query\}/g, body.query)
+        : body.query;
+
       const messages: any[] = [
         { role: "system", content: SYSTEM_PROMPT },
-        { role: "user", content: body.query },
+        { role: "user", content: userMessage },
       ];
 
       let finalResponse = "";

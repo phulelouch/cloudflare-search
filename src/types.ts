@@ -12,4 +12,5 @@ export interface SearchResult {
 export interface AgentRequest {
   query: string;
   model?: string;
+  prompt?: string; // preset template: "people", "repos", "apis"
 }
