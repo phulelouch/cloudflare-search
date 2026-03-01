@@ -217,7 +217,7 @@ export default {
         const aiResponse = (await env.AI.run(model as any, {
           messages,
           tools: TOOLS_SCHEMA,
-          max_tokens: 2048,
+          max_tokens: 4096,
         })) as any;
 
         // If model returns text content with no tool calls, we're done
