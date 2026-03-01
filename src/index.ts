@@ -179,9 +179,10 @@ async function handleTemplateQuery(
 
   const aiResponse = (await env.AI.run(model as any, {
     messages: [
-      { role: "system", content: "You analyze search results and output JSON only. No markdown, no explanations, no commentary." },
+      { role: "system", content: "You analyze search results and output JSON only. No markdown, no explanations, no commentary. IMPORTANT: Remove all fields that have empty string values to keep output short." },
       { role: "user", content: synthesisPrompt },
     ],
+    max_tokens: 8192,
   })) as any;
 
   return aiResponse.response || aiResponse.content || "[]";
@@ -202,6 +203,7 @@ async function handleRawQuery(
     const aiResponse = (await env.AI.run(model as any, {
       messages,
       tools: TOOLS_SCHEMA,
+      max_tokens: 8192,
     })) as any;
 
     if (aiResponse.response && (!aiResponse.tool_calls || aiResponse.tool_calls.length === 0)) {

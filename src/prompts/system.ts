@@ -21,8 +21,10 @@ PRIORITY: LinkedIn results are the most important. For each person, prioritize e
 {results}
 
 Output raw JSON only. NEVER use markdown. NEVER wrap in code blocks. NEVER use backticks. Just raw JSON.
-Omit empty fields. If nothing found, return the structure with empty people array.
-{"estimated_employee_count":"","company_linkedin_url":"","people":[{"name":"","work_email":"","roles":[],"github_url":"","gitlab_url":"","bitbucket_url":"","stackoverflow_url":"","dockerhub_url":"","pypi_url":"","npmjs_url":"","codepen_url":"","linkedin_url":"","swaggerhub_url":"","rubygems_url":"","packagist_url":"","crates_url":"","twitter_url":"","website_url":""}]}`,
+CRITICAL: Remove ALL fields that have empty string "" values. Only include fields that have actual data. This keeps the output short and prevents truncation.
+If nothing found, return {"people":[]}.
+Example format (only include fields with values):
+{"estimated_employee_count":"25","company_linkedin_url":"https://linkedin.com/company/example","people":[{"name":"John","roles":["CTO"],"linkedin_url":"https://linkedin.com/in/john","github_url":"https://github.com/john"}]}`,
 
   repos: `Below are search results for "{query}" repositories. Deeply analyze every result and extract ALL repositories found.
 
