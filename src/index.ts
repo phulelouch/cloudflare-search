@@ -10,7 +10,7 @@ import {
 import { SYSTEM_PROMPT, PROMPT_TEMPLATES } from "./prompts/system";
 import type { Env, AgentRequest } from "./types";
 
-const DEFAULT_MODEL = "@cf/meta/llama-3.1-8b-instruct-awq";
+const DEFAULT_MODEL = "@cf/meta/llama-3.1-8b-instruct-fast";
 const MAX_TOOL_ROUNDS = 10;
 
 const ALLOWED_MODELS = [
