@@ -12,7 +12,7 @@ export const SYNTHESIS_PROMPTS: Record<string, string> = {
 
 IMPORTANT: Only include results that are actually related to "{query}". Verify each result contains the keyword "{query}" in the URL, title, or description. Discard unrelated results.
 
-For each person found, extract as many fields as possible. Focus especially on LinkedIn for professional roles, companies, and work history.
+PRIORITY: LinkedIn results are the most important. For each person, prioritize extracting their LinkedIn URL, job title, company, and roles. Then fill in other platform URLs (GitHub, GitLab, etc.) from remaining results.
 
 {results}
 
