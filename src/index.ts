@@ -188,9 +188,9 @@ export default {
         { status: 400 }
       );
     }
-    if (body.query.length > 2000) {
+    if (body.query.length > 10000) {
       return Response.json(
-        { error: "Query too long (max 2000 chars)" },
+        { error: "Query too long (max 10000 chars)" },
         { status: 400 }
       );
     }
