@@ -32,9 +32,47 @@ export async function braveSearch(query: string, env: Env): Promise<string | nul
     .join("\n\n");
 }
 
-// Run all available search engines in parallel, return first successful result
+// SearXNG — free metasearch aggregating Google, Bing, DuckDuckGo (no API key)
+const SEARXNG_INSTANCES = [
+  "https://search.sapti.me",
+  "https://searx.be",
+  "https://search.bus-hit.me",
+];
+
+export async function searxngSearch(query: string): Promise<string | null> {
+  for (const instance of SEARXNG_INSTANCES) {
+    try {
+      const url = `${instance}/search?q=${encodeURIComponent(query)}&format=json&engines=google,bing,duckduckgo`;
+      const res = await fetch(url, {
+        headers: { Accept: "application/json" },
+      });
+
+      if (!res.ok) continue;
+
+      const data = (await res.json()) as any;
+      const results = (data.results || []).slice(0, 5);
+
+      if (results.length === 0) continue;
+
+      return results
+        .map(
+          (r: any, i: number) =>
+            `[${i + 1}] ${r.title}\n    URL: ${r.url}\n    ${r.content || ""}`
+        )
+        .join("\n\n");
+    } catch {
+      continue; // try next instance
+    }
+  }
+  return null;
+}
+
+// Run all search engines in parallel, return first successful result
 export async function webSearch(query: string, env: Env): Promise<string> {
-  const searches: Promise<string | null>[] = [duckDuckGoSearch(query)];
+  const searches: Promise<string | null>[] = [
+    searxngSearch(query),
+    duckDuckGoSearch(query),
+  ];
 
   if (env.BRAVE_API_KEY) {
     searches.unshift(braveSearch(query, env));
