@@ -11,19 +11,34 @@ CRITICAL RULES:
 
 // Preset prompt templates — use via {"prompt": "people", "query": "Dvuln"}
 export const PROMPT_TEMPLATES: Record<string, string> = {
-  people: `Find people associated with "{query}". You MUST execute ALL of these searches — do NOT skip any:
-1. web_search("{query} github")
-2. web_search("{query} linkedin")
-3. web_search("{query} gitlab")
-4. web_search("{query} stackoverflow")
-5. web_search("{query} npm OR pypi")
-6. github_search("{query}")
-7. reddit_search("{query}")
-8. hackernews_search("{query}")
-9. web_search("{query} developer OR engineer OR founder")
-10. web_search("{query} twitter OR x.com")
-After ALL searches complete, use fetch_url on the most promising URLs to extract names, emails, and profile details.
-Do NOT respond until all 10 searches are done.
+  people: `Deeply investigate and find ALL people associated with "{query}". Go through everything in great detail and uncover every intricacy.
+
+You MUST execute ALL of these searches — do NOT skip any:
+1. web_search("{query} linkedin profile")
+2. web_search("{query} linkedin developer engineer")
+3. web_search("{query} github profile")
+4. web_search("{query} gitlab profile")
+5. web_search("{query} stackoverflow profile")
+6. web_search("{query} npmjs package author")
+7. web_search("{query} pypi package author")
+8. web_search("{query} dockerhub")
+9. web_search("{query} codepen")
+10. web_search("{query} swaggerhub")
+11. web_search("{query} rubygems author")
+12. web_search("{query} packagist author")
+13. web_search("{query} crates.io author")
+14. web_search("{query} bitbucket profile")
+15. web_search("{query} twitter OR x.com")
+16. web_search("{query} developer OR engineer OR founder OR CTO")
+17. github_search("{query}")
+18. reddit_search("{query}")
+19. hackernews_search("{query}")
+
+After ALL searches complete, deeply investigate each result. Use fetch_url on EVERY promising URL to extract names, emails, roles, and profile details in great detail. Go through every intricacy — check profile pages, contribution pages, about pages, and README files.
+
+Focus especially on LinkedIn — search deeply for their professional profiles, roles, companies, and work history.
+
+Do NOT respond until ALL 19 searches are done and you have fetched details from promising results.
 JSON only. No markdown. If nothing found, return [].
 [{"name":"","work_email":"","roles":[],"github_url":"","gitlab_url":"","bitbucket_url":"","stackoverflow_url":"","dockerhub_url":"","pypi_url":"","npmjs_url":"","codepen_url":"","linkedin_url":"","swaggerhub_url":"","rubygems_url":"","packagist_url":"","crates_url":"","twitter_url":"","website_url":""}]`,
 
