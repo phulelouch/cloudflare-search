@@ -8,17 +8,21 @@ RULES:
 
 // Synthesis prompts — used when search results are pre-fetched
 export const SYNTHESIS_PROMPTS: Record<string, string> = {
-  people: `Below are search results for "{query}" across many platforms. Deeply analyze every result and extract ALL people found. Go through every intricacy and detail.
+  people: `Below are search results for "{query}" across many platforms.
 
-IMPORTANT: Only include results that are actually related to "{query}". Verify each result contains the keyword "{query}" in the URL, title, or description. Discard unrelated results.
+STEP 1: First, look at the "Company LinkedIn page" and "Company LinkedIn employees" results to determine the company size and how many people work at "{query}". Note the estimated_employee_count.
+
+STEP 2: Then deeply analyze ALL results to extract every person found who is associated with "{query}". Go through every intricacy and detail.
+
+IMPORTANT: Only include people actually related to "{query}". Verify each result contains the keyword "{query}" in the URL, title, or description. Discard unrelated results.
 
 PRIORITY: LinkedIn results are the most important. For each person, prioritize extracting their LinkedIn URL, job title, company, and roles. Then fill in other platform URLs (GitHub, GitLab, etc.) from remaining results.
 
 {results}
 
-Output raw JSON array only. NEVER use markdown. NEVER wrap in code blocks. NEVER use backticks. Just raw JSON.
-Omit empty fields. If nothing found, return [].
-[{"name":"","work_email":"","roles":[],"github_url":"","gitlab_url":"","bitbucket_url":"","stackoverflow_url":"","dockerhub_url":"","pypi_url":"","npmjs_url":"","codepen_url":"","linkedin_url":"","swaggerhub_url":"","rubygems_url":"","packagist_url":"","crates_url":"","twitter_url":"","website_url":""}]`,
+Output raw JSON only. NEVER use markdown. NEVER wrap in code blocks. NEVER use backticks. Just raw JSON.
+Omit empty fields. If nothing found, return the structure with empty people array.
+{"estimated_employee_count":"","company_linkedin_url":"","people":[{"name":"","work_email":"","roles":[],"github_url":"","gitlab_url":"","bitbucket_url":"","stackoverflow_url":"","dockerhub_url":"","pypi_url":"","npmjs_url":"","codepen_url":"","linkedin_url":"","swaggerhub_url":"","rubygems_url":"","packagist_url":"","crates_url":"","twitter_url":"","website_url":""}]}`,
 
   repos: `Below are search results for "{query}" repositories. Deeply analyze every result and extract ALL repositories found.
 

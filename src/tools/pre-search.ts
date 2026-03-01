@@ -22,13 +22,16 @@ async function runSearches(
     .join("\n\n");
 }
 
-// People search — LinkedIn-heavy, Google as primary engine
+// People search — first find company LinkedIn, then search for people
 export async function preSearchPeople(query: string): Promise<string> {
   return runSearches([
-    // LinkedIn focus (3 searches)
-    { label: "LinkedIn profiles", fn: () => search(`${query} site:linkedin.com`) },
-    { label: "LinkedIn people", fn: () => search(`${query} linkedin profile developer engineer`) },
-    { label: "LinkedIn company roles", fn: () => search(`${query} linkedin CTO founder manager`) },
+    // Company LinkedIn overview (determine size + employee count)
+    { label: "Company LinkedIn page", fn: () => search(`${query} site:linkedin.com/company`) },
+    { label: "Company LinkedIn employees", fn: () => search(`${query} linkedin employees team size`) },
+    { label: "Company LinkedIn people list", fn: () => search(`site:linkedin.com/in ${query}`) },
+    // Individual LinkedIn profiles
+    { label: "LinkedIn profiles", fn: () => search(`${query} linkedin profile developer engineer`) },
+    { label: "LinkedIn leadership", fn: () => search(`${query} linkedin CTO founder CEO manager`) },
     // Code platforms
     { label: "GitHub + GitLab", fn: () => search(`${query} github gitlab profile`) },
     { label: "GitHub API", fn: () => githubSearch(query) },
@@ -38,7 +41,7 @@ export async function preSearchPeople(query: string): Promise<string> {
     { label: "Other registries", fn: () => search(`${query} swaggerhub rubygems packagist crates.io codepen`) },
     // Social + general
     { label: "Twitter/X", fn: () => search(`${query} twitter x.com profile`) },
-    { label: "General web", fn: () => search(`${query} developer engineer founder about`) },
+    { label: "General web", fn: () => search(`${query} developer engineer founder about team`) },
     { label: "Reddit", fn: () => redditSearch(query) },
     { label: "HackerNews", fn: () => hackerNewsSearch(query) },
   ]);
