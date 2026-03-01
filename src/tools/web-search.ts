@@ -46,9 +46,13 @@ export async function braveSearch(query: string, env: Env): Promise<string | nul
     .join("\n\n");
 }
 
-// Run all available search engines in parallel, return first successful result
+// Run all search engines in parallel, return first successful result
 export async function webSearch(query: string, env: Env): Promise<string> {
-  const searches: Promise<string | null>[] = [duckDuckGoSearch(query)];
+  const searches: Promise<string | null>[] = [
+    googleSearch(query),
+    bingSearch(query),
+    duckDuckGoSearch(query),
+  ];
 
   if (env.BRAVE_API_KEY) {
     searches.unshift(braveSearch(query, env));
@@ -62,6 +66,81 @@ export async function webSearch(query: string, env: Env): Promise<string> {
   }
 
   return "No search results found from any search engine.";
+}
+
+// Google HTML scrape (no API key)
+export async function googleSearch(query: string): Promise<string | null> {
+  const url = `https://www.google.com/search?q=${encodeURIComponent(query)}&num=5&hl=en`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const results: SearchResult[] = [];
+
+    // Google wraps results in <a href="/url?q=..."> with <h3> titles
+    const linkRegex = /<a[^>]+href="\/url\?q=([^&"]+)[^"]*"[^>]*>[\s\S]*?<h3[^>]*>([\s\S]*?)<\/h3>/g;
+    let match;
+    while ((match = linkRegex.exec(html)) !== null && results.length < 5) {
+      const rawUrl = decodeURIComponent(match[1]);
+      if (rawUrl.startsWith("http")) {
+        results.push({
+          url: rawUrl,
+          title: match[2].replace(/<[^>]*>/g, "").trim(),
+          snippet: "",
+        });
+      }
+    }
+
+    if (results.length === 0) return null;
+    return results
+      .map((r, i) => `[${i + 1}] ${r.title}\n    URL: ${r.url}`)
+      .join("\n\n");
+  } catch {
+    return null;
+  }
+}
+
+// Bing HTML scrape (no API key)
+export async function bingSearch(query: string): Promise<string | null> {
+  const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}&count=5`;
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const results: SearchResult[] = [];
+
+    // Bing results: <li class="b_algo"><h2><a href="URL">Title</a></h2>...<p>snippet</p>
+    const resultRegex = /<li class="b_algo"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/g;
+    let match;
+    while ((match = resultRegex.exec(html)) !== null && results.length < 5) {
+      results.push({
+        url: match[1],
+        title: match[2].replace(/<[^>]*>/g, "").trim(),
+        snippet: match[3].replace(/<[^>]*>/g, "").trim(),
+      });
+    }
+
+    if (results.length === 0) return null;
+    return results
+      .map((r, i) => `[${i + 1}] ${r.title}\n    URL: ${r.url}\n    ${r.snippet}`)
+      .join("\n\n");
+  } catch {
+    return null;
+  }
 }
 
 // DuckDuckGo HTML scrape fallback (no API key needed)
