@@ -1,7 +1,21 @@
 import type { Env, SearchResult } from "../types";
 
-// Brave Search API
+const BRAVE_MONTHLY_LIMIT = 1000;
+
+// Check and increment Brave usage counter (resets monthly)
+async function checkBraveQuota(env: Env): Promise<boolean> {
+  const key = `brave_usage:${new Date().toISOString().slice(0, 7)}`; // e.g. brave_usage:2026-03
+  const count = parseInt((await env.KV.get(key)) || "0", 10);
+  if (count >= BRAVE_MONTHLY_LIMIT) return false;
+  // Increment counter, expires in 35 days (auto-cleanup)
+  await env.KV.put(key, String(count + 1), { expirationTtl: 35 * 86400 });
+  return true;
+}
+
+// Brave Search API (capped at 1,000 req/month)
 export async function braveSearch(query: string, env: Env): Promise<string | null> {
+  if (!await checkBraveQuota(env)) return null;
+
   const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5`;
 
   const res = await fetch(url, {
