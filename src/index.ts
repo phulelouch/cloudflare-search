@@ -155,7 +155,7 @@ async function executeTool(
 }
 
 // Pre-search runners for each template
-const PRE_SEARCH_RUNNERS: Record<string, (q: string, env: Env) => Promise<string>> = {
+const PRE_SEARCH_RUNNERS: Record<string, (q: string) => Promise<string>> = {
   people: preSearchPeople,
   repos: preSearchRepos,
   apis: preSearchApis,
@@ -168,9 +168,9 @@ async function handleTemplateQuery(
   model: string,
   env: Env
 ): Promise<string> {
-  // Run all searches in parallel
+  // Run all searches in parallel (uses DDG only to stay under subrequest limit)
   const runner = PRE_SEARCH_RUNNERS[template];
-  const searchResults = await runner(query, env);
+  const searchResults = await runner(query);
 
   // Build synthesis prompt with results injected
   const synthesisPrompt = SYNTHESIS_PROMPTS[template]
