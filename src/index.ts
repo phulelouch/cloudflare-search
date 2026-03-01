@@ -1,10 +1,10 @@
-import { runWithTools } from "@cloudflare/ai-utils";
 import { webSearch } from "./tools/web-search";
 import { fetchUrl } from "./tools/fetch-url";
 import { SYSTEM_PROMPT } from "./prompts/system";
 import type { Env, AgentRequest } from "./types";
 
 const DEFAULT_MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct";
+const MAX_TOOL_ROUNDS = 5;
 
 const ALLOWED_MODELS = [
   DEFAULT_MODEL,
@@ -13,15 +13,65 @@ const ALLOWED_MODELS = [
   "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
 ];
 
+const TOOLS_SCHEMA = [
+  {
+    type: "function" as const,
+    function: {
+      name: "web_search",
+      description:
+        "Search the internet for current information. Returns top 5 results.",
+      parameters: {
+        type: "object",
+        properties: {
+          search_query: {
+            type: "string",
+            description: "The search query",
+          },
+        },
+        required: ["search_query"],
+      },
+    },
+  },
+  {
+    type: "function" as const,
+    function: {
+      name: "fetch_url",
+      description: "Fetch and read the text content of a webpage URL.",
+      parameters: {
+        type: "object",
+        properties: {
+          url: { type: "string", description: "The URL to fetch" },
+        },
+        required: ["url"],
+      },
+    },
+  },
+];
+
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+// Execute a tool call and return the result
+async function executeTool(
+  name: string,
+  args: Record<string, string>,
+  env: Env
+): Promise<string> {
+  switch (name) {
+    case "web_search":
+      return await webSearch(args.search_query, env);
+    case "fetch_url":
+      return await fetchUrl(args.url);
+    default:
+      return `Unknown tool: ${name}`;
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    // CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: CORS_HEADERS });
     }
@@ -41,7 +91,10 @@ export default {
     }
 
     if (!body.query || typeof body.query !== "string") {
-      return Response.json({ error: "Missing 'query' field" }, { status: 400 });
+      return Response.json(
+        { error: "Missing 'query' field" },
+        { status: 400 }
+      );
     }
     if (body.query.length > 2000) {
       return Response.json(
@@ -55,65 +108,58 @@ export default {
       : DEFAULT_MODEL;
 
     try {
-      const response = await runWithTools(
-        env.AI,
-        model,
-        {
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: body.query },
-          ],
-          tools: [
-            {
-              name: "web_search",
-              description:
-                "Search the internet for current information. Returns top 5 results with titles, URLs, and snippets.",
-              parameters: {
-                type: "object" as const,
-                properties: {
-                  search_query: {
-                    type: "string",
-                    description: "The search query to look up on the internet",
-                  },
-                },
-                required: ["search_query"],
-              },
-              function: async ({
-                search_query,
-              }: {
-                search_query: string;
-              }) => {
-                return await webSearch(search_query, env);
-              },
-            },
-            {
-              name: "fetch_url",
-              description:
-                "Fetch and read the full text content of a specific webpage URL.",
-              parameters: {
-                type: "object" as const,
-                properties: {
-                  url: {
-                    type: "string",
-                    description: "The complete URL to fetch",
-                  },
-                },
-                required: ["url"],
-              },
-              function: async ({ url }: { url: string }) => {
-                return await fetchUrl(url);
-              },
-            },
-          ],
-        },
-        {
-          maxRecursiveToolRuns: 5,
-          strictValidation: false,
+      // Build conversation with tool calling loop
+      const messages: any[] = [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: body.query },
+      ];
+
+      let finalResponse = "";
+
+      for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
+        const aiResponse = (await env.AI.run(model as any, {
+          messages,
+          tools: TOOLS_SCHEMA,
+        })) as any;
+
+        // If model returns text content, we're done
+        if (aiResponse.response) {
+          finalResponse = aiResponse.response;
+          break;
         }
-      );
+
+        // If no tool calls, extract whatever we can
+        if (!aiResponse.tool_calls || aiResponse.tool_calls.length === 0) {
+          finalResponse =
+            aiResponse.response || aiResponse.content || "No response generated.";
+          break;
+        }
+
+        // Add assistant message with tool calls
+        messages.push({
+          role: "assistant",
+          tool_calls: aiResponse.tool_calls,
+        });
+
+        // Execute each tool call and add results
+        for (const toolCall of aiResponse.tool_calls) {
+          const args =
+            typeof toolCall.arguments === "string"
+              ? JSON.parse(toolCall.arguments)
+              : toolCall.arguments;
+
+          const result = await executeTool(toolCall.name, args, env);
+
+          messages.push({
+            role: "tool",
+            name: toolCall.name,
+            content: result,
+          });
+        }
+      }
 
       return Response.json(
-        { response, model },
+        { response: finalResponse, model },
         { headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
       );
     } catch (err: any) {
