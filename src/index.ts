@@ -264,6 +264,16 @@ export default {
       : DEFAULT_MODEL;
 
     try {
+      // Debug mode: return raw search results without AI synthesis
+      if (body.debug && body.prompt && PRE_SEARCH_RUNNERS[body.prompt]) {
+        const runner = PRE_SEARCH_RUNNERS[body.prompt];
+        const searchResults = await runner(body.query);
+        return Response.json(
+          { debug: true, search_results: searchResults, model },
+          { headers: { "Content-Type": "application/json", ...CORS_HEADERS } }
+        );
+      }
+
       let response: string;
 
       if (body.prompt && SYNTHESIS_PROMPTS[body.prompt]) {
