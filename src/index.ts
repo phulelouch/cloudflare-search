@@ -138,18 +138,25 @@ export default {
           break;
         }
 
+        // Add assistant message with tool calls to conversation
+        messages.push({
+          role: "assistant",
+          tool_calls: aiResponse.tool_calls,
+        });
+
         // Execute each tool call and add results
         for (const toolCall of aiResponse.tool_calls) {
+          // Handle both flat (name, arguments) and nested (function.name, function.arguments)
+          const name = toolCall.name || toolCall.function?.name;
+          const rawArgs = toolCall.arguments || toolCall.function?.arguments;
           const args =
-            typeof toolCall.arguments === "string"
-              ? JSON.parse(toolCall.arguments)
-              : toolCall.arguments;
+            typeof rawArgs === "string" ? JSON.parse(rawArgs) : rawArgs;
 
-          const result = await executeTool(toolCall.name, args, env);
+          const result = await executeTool(name, args, env);
 
           messages.push({
             role: "tool",
-            name: toolCall.name,
+            name: name,
             content: result,
           });
         }
