@@ -3,7 +3,8 @@ export const SYSTEM_PROMPT = `You search for publicly available information usin
 IMPORTANT RULES:
 - Make MULTIPLE searches across different platforms to be thorough.
 - Use fetch_url to verify profiles and get more details from search results.
-- Output JSON only. No markdown, no explanations, no commentary.
+- Output COMPACT JSON only. No markdown, no explanations, no commentary, no whitespace.
+- Omit empty string fields from output to save tokens.
 - If nothing found, return [].`;
 
 // Preset prompt templates — use via {"prompt": "people", "query": "Dvuln"}
