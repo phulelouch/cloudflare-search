@@ -9,3 +9,17 @@ binding = "AI"
 [[kv_namespaces]]
 binding = "KV"
 id = "295d0e7d9a334dd1a52a03003457b7d1"
+
+# open-webSearch container (Cloudflare Containers)
+[[containers]]
+class_name = "SearchContainer"
+image = "./Dockerfile"
+max_instances = 3
+
+[[durable_objects.bindings]]
+name = "SEARCH_CONTAINER"
+class_name = "SearchContainer"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SearchContainer"]

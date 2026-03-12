@@ -1,17 +1,6 @@
-import { braveSearch, duckDuckGoSearch } from "./web-search";
+import { search } from "./web-search";
 import { githubSearch, hackerNewsSearch, redditSearch } from "./extra-search-sources";
-import { fetchUrl } from "./fetch-url";
 import type { Env } from "../types";
-
-// Use Brave API (actually works from Workers), fall back to DDG
-async function search(query: string, env: Env): Promise<string | null> {
-  if (env.BRAVE_API_KEY) {
-    const brave = await braveSearch(query, env);
-    if (brave) return brave;
-  }
-  const ddg = await duckDuckGoSearch(query);
-  return ddg || null;
-}
 
 // Execute all searches in parallel, return combined results
 async function runSearches(
@@ -27,20 +16,16 @@ async function runSearches(
     .join("\n\n");
 }
 
-// People search — LinkedIn-focused, uses Brave API for reliable results
+// People search — LinkedIn-focused, multi-platform
 export async function preSearchPeople(query: string, env: Env): Promise<string> {
   return runSearches([
-    // LinkedIn focus (company + people)
     { label: "Company LinkedIn", fn: () => search(`${query} site:linkedin.com/company`, env) },
     { label: "LinkedIn employees", fn: () => search(`${query} linkedin employees team people`, env) },
     { label: "LinkedIn profiles", fn: () => search(`site:linkedin.com/in ${query}`, env) },
     { label: "LinkedIn leadership", fn: () => search(`${query} linkedin CTO founder CEO engineer`, env) },
-    // Direct URL fetch (try company LinkedIn page directly)
-    { label: "Company website", fn: () => fetchUrl(`https://dvuln.com`) },
-    // Code platforms
+    { label: "Company website", fn: () => search(`${query} official website about`, env) },
     { label: "GitHub + GitLab", fn: () => search(`${query} github gitlab profile`, env) },
     { label: "GitHub API", fn: () => githubSearch(query) },
-    // Social + general
     { label: "Twitter/X", fn: () => search(`${query} twitter x.com`, env) },
     { label: "General web", fn: () => search(`${query} team about developer engineer founder`, env) },
     { label: "Reddit", fn: () => redditSearch(query) },

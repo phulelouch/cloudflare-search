@@ -10,6 +10,8 @@ import {
 import { preSearchPeople, preSearchRepos, preSearchApis } from "./tools/pre-search";
 import { SYSTEM_PROMPT, SYNTHESIS_PROMPTS } from "./prompts/system";
 import type { Env, AgentRequest } from "./types";
+// Re-export SearchContainer for Cloudflare Containers binding
+export { SearchContainer } from "./types";
 
 const DEFAULT_MODEL = "@cf/meta/llama-4-scout-17b-16e-instruct";
 const MAX_TOOL_ROUNDS = 10;
@@ -168,11 +170,9 @@ async function handleTemplateQuery(
   model: string,
   env: Env
 ): Promise<string> {
-  // Run all searches in parallel (Brave API primary, DDG fallback)
   const runner = PRE_SEARCH_RUNNERS[template];
   const searchResults = await runner(query, env);
 
-  // Build synthesis prompt with results injected
   const synthesisPrompt = SYNTHESIS_PROMPTS[template]
     .replace(/\{query\}/g, query)
     .replace(/\{results\}/g, searchResults);
@@ -277,10 +277,8 @@ export default {
       let response: string;
 
       if (body.prompt && SYNTHESIS_PROMPTS[body.prompt]) {
-        // Template mode: pre-search + synthesize
         response = await handleTemplateQuery(body.query, body.prompt, model, env);
       } else {
-        // Raw query mode: tool calling loop
         response = await handleRawQuery(body.query, model, env);
       }
 

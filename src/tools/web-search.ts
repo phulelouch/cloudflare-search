@@ -1,130 +1,108 @@
 import type { Env, SearchResult } from "../types";
 
-const BRAVE_MONTHLY_LIMIT = 1000;
+// Call open-webSearch container via Cloudflare Containers binding
+async function openWebSearch(
+  query: string,
+  env: Env,
+  limit = 5,
+  engines?: string[]
+): Promise<SearchResult[]> {
+  try {
+    // Get a shared container instance by name
+    const container = env.SEARCH_CONTAINER.getByName("search");
 
-// Check and increment Brave usage counter (resets monthly)
-async function checkBraveQuota(env: Env): Promise<boolean> {
-  const key = `brave_usage:${new Date().toISOString().slice(0, 7)}`; // e.g. brave_usage:2026-03
-  const count = parseInt((await env.KV.get(key)) || "0", 10);
-  if (count >= BRAVE_MONTHLY_LIMIT) return false;
-  // Increment counter, expires in 35 days (auto-cleanup)
-  await env.KV.put(key, String(count + 1), { expirationTtl: 35 * 86400 });
-  return true;
+    // JSON-RPC call to open-webSearch MCP endpoint
+    const res = await container.fetch(
+      new Request("http://container/mcp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "tools/call",
+          params: {
+            name: "search",
+            arguments: {
+              query,
+              limit,
+              ...(engines ? { engines } : {}),
+            },
+          },
+          id: 1,
+        }),
+        signal: AbortSignal.timeout(8000),
+      })
+    );
+
+    if (!res.ok) return [];
+
+    const data = (await res.json()) as any;
+
+    // Check for JSON-RPC error response
+    if (data?.error) {
+      console.error(`open-webSearch error: ${data.error.message} (code ${data.error.code})`);
+      return [];
+    }
+
+    // MCP response: { result: { content: [{ text: "..." }] } }
+    const content = data?.result?.content;
+    if (!content || !Array.isArray(content)) return [];
+
+    const text = content[0]?.text;
+    if (!text) return [];
+    const parsed = JSON.parse(text);
+    return (parsed.results || parsed || []).slice(0, limit).map((r: any) => ({
+      title: r.title || "",
+      url: r.url || "",
+      snippet: r.description || r.snippet || "",
+    }));
+  } catch {
+    return [];
+  }
 }
 
-// Brave Search API (capped at 1,000 req/month)
-export async function braveSearch(query: string, env: Env): Promise<string | null> {
-  if (!await checkBraveQuota(env)) return null;
-
-  const url = `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5`;
-
-  const res = await fetch(url, {
-    headers: {
-      "Accept": "application/json",
-      "Accept-Encoding": "gzip",
-      "X-Subscription-Token": env.BRAVE_API_KEY,
-    },
-  });
-
-  // 402/429 = quota exceeded, return null to trigger DDG fallback
-  if (!res.ok) {
-    return null;
-  }
-
-  const data = (await res.json()) as any;
-  const results: SearchResult[] = (data.web?.results || []).slice(0, 5);
-
-  if (results.length === 0) {
-    return "No search results found.";
-  }
-
+// Format search results as readable text for LLM consumption
+function formatResults(results: SearchResult[]): string {
+  if (results.length === 0) return "No search results found.";
   return results
     .map(
-      (r: any, i: number) =>
-        `[${i + 1}] ${r.title}\n    URL: ${r.url}\n    ${r.description || r.snippet || ""}`
+      (r, i) =>
+        `[${i + 1}] ${r.title}\n    URL: ${r.url}\n    ${r.snippet}`
     )
     .join("\n\n");
 }
 
-// Run all search engines in parallel, return first successful result
+// Primary search — calls open-webSearch container, falls back to DuckDuckGo scrape
 export async function webSearch(query: string, env: Env): Promise<string> {
-  const searches: Promise<string | null>[] = [
-    googleSearch(query),
-    bingSearch(query),
-    duckDuckGoSearch(query),
-  ];
-
-  if (env.BRAVE_API_KEY) {
-    searches.unshift(braveSearch(query, env));
-  }
-
-  const results = await Promise.allSettled(searches);
-
-  // Return first successful non-null result
-  for (const r of results) {
-    if (r.status === "fulfilled" && r.value) return r.value;
-  }
-
-  return "No search results found from any search engine.";
+  const results = await openWebSearch(query, env);
+  if (results.length > 0) return formatResults(results);
+  return duckDuckGoSearch(query);
 }
 
-// Google HTML scrape (no API key)
-export async function googleSearch(query: string): Promise<string | null> {
-  const url = `https://www.google.com/search?q=${encodeURIComponent(query)}&num=5&hl=en`;
+// Search for pre-search module — returns formatted text or null
+export async function search(query: string, env: Env): Promise<string | null> {
+  const results = await openWebSearch(query, env);
+  if (results.length > 0) return formatResults(results);
+  const ddg = await duckDuckGoSearch(query);
+  return ddg || null;
+}
+
+// DuckDuckGo HTML scrape fallback (no external dependency)
+export async function duckDuckGoSearch(query: string): Promise<string> {
+  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
   try {
     const res = await fetch(url, {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "en-US,en;q=0.9",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       },
     });
-    if (!res.ok) return null;
+    if (!res.ok) return "DuckDuckGo search failed.";
+
     const html = await res.text();
     const results: SearchResult[] = [];
+    const resultRegex =
+      /<a rel="nofollow" class="result__a" href="([^"]+)"[^>]*>(.+?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
 
-    // Google wraps results in <a href="/url?q=..."> with <h3> titles
-    const linkRegex = /<a[^>]+href="\/url\?q=([^&"]+)[^"]*"[^>]*>[\s\S]*?<h3[^>]*>([\s\S]*?)<\/h3>/g;
-    let match;
-    while ((match = linkRegex.exec(html)) !== null && results.length < 5) {
-      const rawUrl = decodeURIComponent(match[1]);
-      if (rawUrl.startsWith("http")) {
-        results.push({
-          url: rawUrl,
-          title: match[2].replace(/<[^>]*>/g, "").trim(),
-          snippet: "",
-        });
-      }
-    }
-
-    if (results.length === 0) return null;
-    return results
-      .map((r, i) => `[${i + 1}] ${r.title}\n    URL: ${r.url}`)
-      .join("\n\n");
-  } catch {
-    return null;
-  }
-}
-
-// Bing HTML scrape (no API key)
-export async function bingSearch(query: string): Promise<string | null> {
-  const url = `https://www.bing.com/search?q=${encodeURIComponent(query)}&count=5`;
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "en-US,en;q=0.9",
-      },
-    });
-    if (!res.ok) return null;
-    const html = await res.text();
-    const results: SearchResult[] = [];
-
-    // Bing results: <li class="b_algo"><h2><a href="URL">Title</a></h2>...<p>snippet</p>
-    const resultRegex = /<li class="b_algo"[^>]*>[\s\S]*?<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/g;
     let match;
     while ((match = resultRegex.exec(html)) !== null && results.length < 5) {
       results.push({
@@ -133,50 +111,8 @@ export async function bingSearch(query: string): Promise<string | null> {
         snippet: match[3].replace(/<[^>]*>/g, "").trim(),
       });
     }
-
-    if (results.length === 0) return null;
-    return results
-      .map((r, i) => `[${i + 1}] ${r.title}\n    URL: ${r.url}\n    ${r.snippet}`)
-      .join("\n\n");
+    return formatResults(results);
   } catch {
-    return null;
+    return "DuckDuckGo search error.";
   }
-}
-
-// DuckDuckGo HTML scrape fallback (no API key needed)
-export async function duckDuckGoSearch(query: string): Promise<string> {
-  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-
-  const res = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    },
-  });
-
-  if (!res.ok) {
-    return `DuckDuckGo search failed with status ${res.status}`;
-  }
-
-  const html = await res.text();
-  const results: SearchResult[] = [];
-  const resultRegex =
-    /<a rel="nofollow" class="result__a" href="([^"]+)"[^>]*>(.+?)<\/a>[\s\S]*?<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
-
-  let match;
-  while ((match = resultRegex.exec(html)) !== null && results.length < 5) {
-    results.push({
-      url: match[1],
-      title: match[2].replace(/<[^>]*>/g, "").trim(),
-      snippet: match[3].replace(/<[^>]*>/g, "").trim(),
-    });
-  }
-
-  if (results.length === 0) {
-    return "No search results found.";
-  }
-
-  return results
-    .map((r, i) => `[${i + 1}] ${r.title}\n    URL: ${r.url}\n    ${r.snippet}`)
-    .join("\n\n");
 }

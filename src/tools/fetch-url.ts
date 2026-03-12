@@ -6,11 +6,15 @@ function isBlockedUrl(url: string): boolean {
     const h = parsed.hostname.toLowerCase();
     return (
       h === "localhost" ||
+      h === "[::1]" ||
+      h === "0.0.0.0" ||
       h.startsWith("127.") ||
       h.startsWith("10.") ||
       h.startsWith("192.168.") ||
-      h.startsWith("172.16.") ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(h) ||
       h === "169.254.169.254" ||
+      h.startsWith("fc00:") ||
+      h.startsWith("fd00:") ||
       h.endsWith(".internal") ||
       h.endsWith(".local")
     );
