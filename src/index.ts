@@ -8,7 +8,7 @@ import {
   archiveSearch,
 } from "./tools/extra-search-sources";
 import { preSearchPeople, preSearchRepos, preSearchApis } from "./tools/pre-search";
-import { SYSTEM_PROMPT, SYNTHESIS_PROMPTS } from "./prompts/system";
+import { SYSTEM_PROMPT, SYNTHESIS_PROMPTS, buildSystemPrompt } from "./prompts/system";
 import type { Env, AgentRequest } from "./types";
 // Re-export SearchContainer for Cloudflare Containers binding
 export { SearchContainer } from "./types";
@@ -192,10 +192,17 @@ async function handleTemplateQuery(
 async function handleRawQuery(
   query: string,
   model: string,
-  env: Env
+  env: Env,
+  target?: string,
+  org?: string
 ): Promise<string> {
+  // Use full OSINT prompt when target/org provided, otherwise fallback
+  const systemPrompt = target && org
+    ? buildSystemPrompt(target, org)
+    : SYSTEM_PROMPT;
+
   const messages: any[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt },
     { role: "user", content: query },
   ];
 
@@ -279,7 +286,7 @@ export default {
       if (body.prompt && SYNTHESIS_PROMPTS[body.prompt]) {
         response = await handleTemplateQuery(body.query, body.prompt, model, env);
       } else {
-        response = await handleRawQuery(body.query, model, env);
+        response = await handleRawQuery(body.query, model, env, body.target, body.org);
       }
 
       return Response.json(

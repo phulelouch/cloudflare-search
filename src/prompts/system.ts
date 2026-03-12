@@ -1,12 +1,24 @@
-export const SYSTEM_PROMPT = `You are a search agent with access to tools. Use your tools to find information.
+import { OSINT_MASTER_PROMPT } from "./osint-master-prompt";
+
+// Build the system prompt with target/org placeholders replaced
+export function buildSystemPrompt(target: string, org: string): string {
+  return OSINT_MASTER_PROMPT
+    .replace(/\{\{TARGET\}\}/g, target)
+    .replace(/\{\{ORG\}\}/g, org);
+}
+
+// Fallback for raw queries without target/org
+export const SYSTEM_PROMPT = `You are Hackit, an AI OSINT reconnaissance agent. Use your tools to gather passive intelligence.
 
 RULES:
 - Search multiple times across different platforms to be thorough.
 - Use fetch_url to visit promising URLs and extract details.
-- Output raw JSON only. NEVER use markdown. NEVER wrap in code blocks. NEVER use backticks.
-- Omit empty fields. If nothing found, return [].`;
+- Australian English in all output.
+- Brand as Hackit — use "Hackit identified...", "Hackit discovered...".
+- Document sources for every finding.
+- Output structured findings with severity ratings.`;
 
-// Synthesis prompts — used when search results are pre-fetched
+// Synthesis prompts — used when search results are pre-fetched (template mode)
 export const SYNTHESIS_PROMPTS: Record<string, string> = {
   people: `Below are search results for "{query}" across many platforms.
 

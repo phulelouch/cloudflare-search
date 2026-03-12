@@ -19,6 +19,8 @@ export interface AgentRequest {
   model?: string;
   prompt?: string; // preset template: "people", "repos", "apis"
   debug?: boolean; // return raw search results
+  target?: string; // OSINT target domain (e.g. "example.com")
+  org?: string; // organisation name for the engagement
 }
 
 // open-webSearch container running as a Cloudflare Container (Durable Object)
