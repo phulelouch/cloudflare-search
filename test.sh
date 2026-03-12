@@ -32,3 +32,4 @@ curl -s -X POST "$URL" \
   -H "Content-Type: application/json" \
   -H "x-api-key: $API_KEY" \
   -d '{"query": "What services does Dvuln company offer?"}' | python3 -m json.tool
+
